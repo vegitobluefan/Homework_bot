@@ -30,14 +30,14 @@ HOMEWORK_VERDICTS = {
 NOT_JSON = 'Ошибка формата, нужен JSON.'
 EMPTY_LIST = 'Ошибка, словарь пуст.'
 MESSAGE_SENDING_ERROR = 'Ошибка отправки сообщения.'
+MESSAGE_SUCCESS = 'Сообщение успешно отправлено!'
 
 
 logging.basicConfig(
     level=logging.DEBUG,
-    filename='./homework_log.log',
+    filename='./homework.log',
     format='%(asctime)s [%(levelname)s] %(message)s',
 )
-
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 handler = logging.StreamHandler(stream=sys.stdout)
@@ -72,7 +72,7 @@ def check_tokens():
     """Проверяет доступность необходимых переменных окружения."""
     for key in (PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID):
         if not key:
-            logging.critical('Отсутствие обязательных переменных окружения.')
+            logger.critical('Отсутствие обязательных переменных окружения.')
             return False
     return True
 
@@ -82,6 +82,7 @@ def send_message(bot, message):
     try:
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
     except Exception as error:
+        logger.error(MESSAGE_SENDING_ERROR)
         raise MessageSendingError(MESSAGE_SENDING_ERROR.format(
             error=error,
             message=message,
@@ -95,11 +96,11 @@ def get_api_answer(timestamp):
     try:
         parameters = requests.get(url=ENDPOINT, headers=HEADERS, params=params)
     except requests.RequestException as error:
-        logging.info(error)
+        logger.info(error)
 
     if parameters.status_code != HTTPStatus.OK:
         message = 'API домашки возвращает код, отличный от 200.'
-        logging.error(message)
+        logger.error(message)
         raise WrongStatusError(message)
     try:
         return parameters.json()
@@ -113,18 +114,18 @@ def check_response(response):
         response.get('homeworks'), list
     ):
         message = 'Некорректный тип данных.'
-        logging.error(message)
+        logger.error(message)
         raise TypeError(message)
 
     try:
         homework_list = response['homeworks']
     except KeyError:
-        logging.error('Ошибка ключа homeworks.')
+        logger.error('Ошибка ключа homeworks.')
         raise KeyError('Ошибка ключа homeworks.')
     try:
         return homework_list[0]
     except IndexError:
-        logging.debug('Пустой список работ.')
+        logger.debug('Пустой список работ.')
         raise IndexError(EMPTY_LIST)
 
 
@@ -145,33 +146,24 @@ def parse_status(homework):
 def main():
     """Основная логика работы бота."""
     if not check_tokens():
-        raise TokensError('Ошибка небходимыз переменных.')
+        raise TokensError('Ошибка небходимых переменных.')
 
     bot = TeleBot(token=TELEGRAM_TOKEN)
-    timestamp = '2024-05-23T06:55:14Z' # int(time.time())
-    current_status = ''
-    current_error = ''
+    timestamp = int(time.time())
 
     while True:
         try:
             response = get_api_answer(timestamp)
             homework = check_response(response)
-            if not len(homework):
-                logging.info('Статус работы не изменён.')
-            else:
-                message = parse_status(homework[0])
-                send_message(bot, message)
-                if current_status == message:
-                    logging.info(homework)
-                else:
-                    current_status = message
-                    send_message(bot, message)
+            message = parse_status(homework)
+            send_message(bot, message)
+        except IndexError:
+            message = 'Статус домашки не изменился.'
+            send_message(bot, message)
+            logger.info(message)
         except Exception as error:
-            logging.error(MESSAGE_SENDING_ERROR)
             message = f'Сбой в работе программы: {error}'
-            if current_error != str(error):
-                current_error = str(error)
-                send_message(bot, message)
+            send_message(bot, message)
         finally:
             time.sleep(RETRY_PERIOD)
 
