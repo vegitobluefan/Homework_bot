@@ -1,7 +1,9 @@
 import logging
 import os
+import sys
 import time
 import requests
+from http import HTTPStatus
 
 from telebot import TeleBot
 from dotenv import load_dotenv
@@ -30,6 +32,18 @@ EMPTY_LIST = 'Ошибка, словарь пуст.'
 MESSAGE_SENDING_ERROR = 'Ошибка отправки сообщения.'
 
 
+logging.basicConfig(
+    level=logging.DEBUG,
+    filename='./homework_log.log',
+    format='%(asctime)s [%(levelname)s] %(message)s',
+)
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+handler = logging.StreamHandler(stream=sys.stdout)
+logger.addHandler(handler)
+
+
 class NotJSONError(Exception):
     """Ошибка формата, когда не JSON."""
 
@@ -44,6 +58,12 @@ class TokensError(Exception):
 
 class MessageSendingError(Exception):
     """Ошибка отправки сообщения."""
+
+    pass
+
+
+class WrongStatusError(Exception):
+    """Когда API домашки возвращает код, отличный от 200."""
 
     pass
 
@@ -71,11 +91,18 @@ def send_message(bot, message):
 
 def get_api_answer(timestamp):
     """Запрос к единственному эндпоинту API."""
-    timestamp = int(time.time())
     params = {'from_date': timestamp}
-    parameters = dict(url=ENDPOINT, headers=HEADERS, params=params)
     try:
-        return requests.get(parameters).json()
+        parameters = requests.get(url=ENDPOINT, headers=HEADERS, params=params)
+    except requests.RequestException as error:
+        logging.info(error)
+
+    if parameters.status_code != HTTPStatus.OK:
+        message = 'API домашки возвращает код, отличный от 200.'
+        logging.error(message)
+        raise WrongStatusError(message)
+    try:
+        return parameters.json()
     except Exception as error:
         raise NotJSONError(NOT_JSON.format(error))
 
@@ -104,10 +131,15 @@ def check_response(response):
 def parse_status(homework):
     """Извлекает статус домашней работы."""
     if 'homework_name' not in homework:
-        raise KeyError('В ответе отсутствует ключ homework_name')
-    homework_name = homework.get('homework_name')
-    verdict = HOMEWORK_VERDICTS[homework.get('status')]
-    return f'Изменился статус проверки работы "{homework_name}". {verdict}'
+        raise KeyError('В ответе отсутствует название работы.')
+
+    homework_name = homework['homework_name']
+    status = homework['status']
+    if status in HOMEWORK_VERDICTS:
+        verdict = HOMEWORK_VERDICTS[status]
+        return f'Изменился статус проверки работы "{homework_name}". {verdict}'
+    if status not in HOMEWORK_VERDICTS:
+        raise KeyError('В ответе отсутствует статус работы.')
 
 
 def main():
@@ -116,26 +148,33 @@ def main():
         raise TokensError('Ошибка небходимыз переменных.')
 
     bot = TeleBot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time())
+    timestamp = '2024-05-23T06:55:14Z' # int(time.time())
+    current_status = ''
+    current_error = ''
 
     while True:
         try:
             response = get_api_answer(timestamp)
             homework = check_response(response)
-            message = parse_status(homework)
-            bot.send_message(message)
-            logging.info(homework)
+            if not len(homework):
+                logging.info('Статус работы не изменён.')
+            else:
+                message = parse_status(homework[0])
+                send_message(bot, message)
+                if current_status == message:
+                    logging.info(homework)
+                else:
+                    current_status = message
+                    send_message(bot, message)
         except Exception as error:
             logging.error(MESSAGE_SENDING_ERROR)
             message = f'Сбой в работе программы: {error}'
-            bot.send_message(message)
+            if current_error != str(error):
+                current_error = str(error)
+                send_message(bot, message)
         finally:
             time.sleep(RETRY_PERIOD)
 
 
 if __name__ == '__main__':
-    logging.basicConfig(
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        level=logging.INFO,
-    )
     main()
