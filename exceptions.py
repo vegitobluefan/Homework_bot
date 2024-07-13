@@ -14,3 +14,9 @@ class WrongStatusError(Exception):
     """Когда API домашки возвращает код, отличный от 200."""
 
     pass
+
+
+class MessageSendingError(Exception):
+    """Ошибка отправки сообщения."""
+
+    pass

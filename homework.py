@@ -6,7 +6,6 @@ from pathlib import Path
 
 import requests
 from telebot import TeleBot
-from telegram.error import TelegramError
 from dotenv import load_dotenv
 
 import exceptions
@@ -49,7 +48,7 @@ def send_message(bot, message):
     """Отправляет сообщение в Telegram-чат."""
     try:
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
-    except TelegramError as error:
+    except exceptions.MessageSendingError as error:
         logging.error(f'Ошибка отправки сообщения: {error}')
     logging.debug('Сообщение успешно отправлено!')
 
