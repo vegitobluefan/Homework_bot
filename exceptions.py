@@ -1,5 +1,5 @@
-class NotJSONError(Exception):
-    """Ошибка формата, когда не JSON."""
+class RequestError(Exception):
+    """Ошибка запроса API."""
 
     pass
 
@@ -10,19 +10,7 @@ class TokensError(Exception):
     pass
 
 
-class MessageSendingError(Exception):
-    """Ошибка отправки сообщения."""
-
-    pass
-
-
 class WrongStatusError(Exception):
     """Когда API домашки возвращает код, отличный от 200."""
-
-    pass
-
-
-class ParseStatusError(Exception):
-    """Ошибка статуса."""
 
     pass
