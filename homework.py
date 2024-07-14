@@ -5,7 +5,8 @@ import time
 from pathlib import Path
 
 import requests
-from telebot import TeleBot, ExceptionHandler
+from telebot import TeleBot
+from telebot.apihelper import ApiTelegramException
 from dotenv import load_dotenv
 
 import exceptions
@@ -37,7 +38,7 @@ def check_tokens():
         'TELEGRAM_TOKEN': TELEGRAM_TOKEN,
     }
     for key_name, key in keys.items():
-        if key is None:
+        if not key:
             logging.critical(
                 f'Отсутсвуют обязательные переменные окружения: {key_name}'
             )
@@ -49,7 +50,7 @@ def send_message(bot, message):
     """Отправляет сообщение в Telegram-чат."""
     try:
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
-    except exceptions.MessageSendingError as error:
+    except ApiTelegramException as error:
         logging.error(f'Ошибка отправки сообщения: {error}')
     else:
         logging.debug('Сообщение успешно отправлено!')
@@ -83,7 +84,6 @@ def check_response(response):
     for object, type in response_values.items():
         if not isinstance(response.get(object), type):
             raise TypeError(f'Поступили данные вида, отличного от {type}.')
-
     return response['homeworks']
 
 
@@ -96,7 +96,7 @@ def parse_status(homework):
     homework_name = homework['homework_name']
     status = homework['status']
     if status not in HOMEWORK_VERDICTS:
-        raise NameError('Передан неизвестный статус работы.')
+        raise ValueError('Передан неизвестный статус работы.')
     verdict = HOMEWORK_VERDICTS[status]
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
