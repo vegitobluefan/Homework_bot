@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 
 import requests
-from telebot import TeleBot
+from telebot import TeleBot, ExceptionHandler
 from dotenv import load_dotenv
 
 import exceptions
@@ -31,16 +31,17 @@ HOMEWORK_VERDICTS = {
 
 def check_tokens():
     """Проверяет доступность необходимых переменных окружения."""
-    if not PRACTICUM_TOKEN:
-        logging.critical('Отсутствие токена Практикума.')
-        return False
-    if not TELEGRAM_TOKEN:
-        logging.critical('Отсутствие токена Телеграма.')
-        return False
-    if not TELEGRAM_CHAT_ID:
-        logging.critical('Отсутсвие id чата Телеграма.')
-        return False
-
+    keys = {
+        'PRACTICUM_TOKEN': PRACTICUM_TOKEN,
+        'TELEGRAM_CHAT_ID': TELEGRAM_CHAT_ID,
+        'TELEGRAM_TOKEN': TELEGRAM_TOKEN,
+    }
+    for key_name, key in keys.items():
+        if key is None:
+            logging.critical(
+                f'Отсутсвуют обязательные переменные окружения: {key_name}'
+            )
+            return False
     return True
 
 
@@ -60,9 +61,11 @@ def get_api_answer(timestamp):
         parameters = requests.get(
             url=ENDPOINT, headers=HEADERS, params={'from_date': timestamp}
         )
-        if parameters.status_code == 200:
-            return parameters.json()
-        raise exceptions.WrongStatusError('Статус отличается от 200.')
+        if parameters.status_code != 200:
+            raise exceptions.WrongStatusError('Статус отличается от 200.')
+        return parameters.json()
+    except requests.JSONDecodeError:
+        raise exceptions.NotJSONError('Ошибка формата, нужен JSON.')
     except requests.RequestException:
         raise exceptions.RequestError('Ошибка запроса API.')
 
@@ -71,12 +74,14 @@ def check_response(response):
     """Проверяет ответ API."""
     if not isinstance(response, dict):
         raise TypeError('Поступили данные вида, отличного от словаря.')
-    if not isinstance(response.get('homeworks'), list):
-        raise TypeError('Поступили данные вида, отличного от списка.')
     if 'homeworks' not in response:
         raise KeyError('Ошибка ключа homeworks.')
+    if not isinstance(response.get('homeworks'), list):
+        raise TypeError('Поступили данные вида, отличного от списка.')
     if 'current_date' not in response:
-        raise KeyError('Ошибка ключа current_date.')
+        logger.error('Ошибка ключа current_date.')
+    if not isinstance(response.get('current_date'), int):
+        raise TypeError('Ключ current_date должен быть типа int')
 
     return response['homeworks']
 
@@ -90,7 +95,7 @@ def parse_status(homework):
     homework_name = homework['homework_name']
     status = homework['status']
     if status not in HOMEWORK_VERDICTS:
-        raise KeyError('Передан неизвестный статус работы.')
+        raise NameError('Передан неизвестный статус работы.')
     verdict = HOMEWORK_VERDICTS[status]
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 

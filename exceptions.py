@@ -20,3 +20,9 @@ class MessageSendingError(Exception):
     """Ошибка отправки сообщения."""
 
     pass
+
+
+class NotJSONError(Exception):
+    """Ошибка формата, когда не JSON."""
+
+    pass
