@@ -76,12 +76,13 @@ def check_response(response):
         raise TypeError('Поступили данные вида, отличного от словаря.')
     if 'homeworks' not in response:
         raise KeyError('Ошибка ключа homeworks.')
-    if not isinstance(response.get('homeworks'), list):
-        raise TypeError('Поступили данные вида, отличного от списка.')
     if 'current_date' not in response:
         logger.error('Ошибка ключа current_date.')
-    if not isinstance(response.get('current_date'), int):
-        raise TypeError('Ключ current_date должен быть типа int')
+
+    response_values = {'homeworks': list, 'current_date': int}
+    for object, type in response_values.items():
+        if not isinstance(response.get(object), type):
+            raise TypeError(f'Поступили данные вида, отличного от {type}.')
 
     return response['homeworks']
 
