@@ -6,7 +6,6 @@ from pathlib import Path
 
 import requests
 from telebot import TeleBot
-from telebot.apihelper import ApiTelegramException
 from dotenv import load_dotenv
 
 import exceptions
@@ -37,20 +36,21 @@ def check_tokens():
         'TELEGRAM_CHAT_ID': TELEGRAM_CHAT_ID,
         'TELEGRAM_TOKEN': TELEGRAM_TOKEN,
     }
+    tokens_checked = True
     for key_name, key in keys.items():
         if not key:
+            tokens_checked = False
             logging.critical(
                 f'Отсутсвуют обязательные переменные окружения: {key_name}'
             )
-            return False
-    return True
+    return tokens_checked
 
 
 def send_message(bot, message):
     """Отправляет сообщение в Telegram-чат."""
     try:
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
-    except ApiTelegramException as error:
+    except requests.ConnectionError as error:
         logging.error(f'Ошибка отправки сообщения: {error}')
     else:
         logging.debug('Сообщение успешно отправлено!')
@@ -65,8 +65,8 @@ def get_api_answer(timestamp):
         if parameters.status_code != 200:
             raise exceptions.WrongStatusError('Статус отличается от 200.')
         return parameters.json()
-    except requests.JSONDecodeError:
-        raise exceptions.NotJSONError('Ошибка формата, нужен JSON.')
+    except requests.JSONDecodeError as error:
+        raise exceptions.NotJSONError(error)
     except requests.RequestException:
         raise exceptions.RequestError('Ошибка запроса API.')
 
@@ -77,13 +77,9 @@ def check_response(response):
         raise TypeError('Поступили данные вида, отличного от словаря.')
     if 'homeworks' not in response:
         raise KeyError('Ошибка ключа homeworks.')
-    if 'current_date' not in response:
-        logger.error('Ошибка ключа current_date.')
+    if not isinstance(response.get('homeworks'), list):
+        raise TypeError('Поступили данные типа, отличного от list.')
 
-    response_values = {'homeworks': list, 'current_date': int}
-    for object, type in response_values.items():
-        if not isinstance(response.get(object), type):
-            raise TypeError(f'Поступили данные вида, отличного от {type}.')
     return response['homeworks']
 
 
@@ -118,6 +114,12 @@ def main():
             else:
                 message = 'Статус домашки не изменился.'
             send_message(bot, message)
+            if 'current_date' not in response:
+                logger.error('Ошибка ключа current_date.')
+            if not isinstance(response.get('current_date'), int):
+                logger.error(
+                    'Поступили данные ключа current_date, отличные от int'
+                )
             timestamp = response.get('current_date', timestamp)
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
