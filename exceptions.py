@@ -20,3 +20,15 @@ class NotJSONError(Exception):
     """Ошибка формата, когда не JSON."""
 
     pass
+
+
+class NoCurrentDateError(Exception):
+    """Ошибка отсутствия ключа current_date."""
+
+    pass
+
+
+class NotIntCurrentDateError(Exception):
+    """Ключ current_date не типа int."""
+
+    pass

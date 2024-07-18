@@ -32,8 +32,13 @@ HOMEWORK_VERDICTS = {
 
 def check_tokens():
     """Проверяет доступность необходимых переменных окружения."""
-    tokens = (PRACTICUM_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_TOKEN)
-    keys_checked = [key for key in tokens if key is None]
+    keys = {
+        'PRACTICUM_TOKEN': PRACTICUM_TOKEN,
+        'TELEGRAM_CHAT_ID': TELEGRAM_CHAT_ID,
+        'TELEGRAM_TOKEN': TELEGRAM_TOKEN,
+    }
+
+    keys_checked = [key_name for key_name, key in keys.items() if key is None]
     if keys_checked:
         logging.critical(
             f'Отсутсвуют обязательные переменные окружения: {keys_checked}'
@@ -45,10 +50,8 @@ def send_message(bot, message):
     """Отправляет сообщение в Telegram-чат."""
     try:
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
-    except ApiTelegramException as error:
+    except (requests.RequestException or ApiTelegramException) as error:
         logging.error(f'Ошибка отправки сообщения: {error}')
-    except requests.ConnectionError as error:
-        logging.error(f'Ошибка соединения с сервером: {error}')
     else:
         logging.debug('Сообщение успешно отправлено!')
 
@@ -79,9 +82,11 @@ def check_response(response):
     if not isinstance(response.get('homeworks'), list):
         raise TypeError('Поступили данные типа, отличного от list.')
     if 'current_date' not in response:
-        logging.error('Ключ current_date отсутствует.')
+        raise exceptions.NoCurrentDateError('Ключ current_date отсутствует.')
     if not isinstance(response.get('current_date'), int):
-        logging.error('Поступили данные ключа current_date, отличные от int')
+        raise exceptions.NotIntCurrentDateError(
+            'Тип ключа current_date отличен от int'
+        )
 
     return response['homeworks']
 
@@ -103,13 +108,12 @@ def parse_status(homework):
 
 def main():
     """Основная логика работы бота."""
-    if check_tokens() != []:
+    if check_tokens():
         raise exceptions.TokensError('Ошибка небходимых переменных.')
 
     bot = TeleBot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
     last_status = ''
-    error_str = ''
 
     while True:
         try:
@@ -128,9 +132,13 @@ def main():
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             logging.error(message)
-            if error_str != str(error):
-                error_str = str(error)
-                send_message(bot, message)
+            if (
+                error != exceptions.NoCurrentDateError
+                or error != exceptions.NotIntCurrentDateError
+            ):
+                if last_status != str(error):
+                    send_message(bot, message)
+                    last_status = str(error)
         finally:
             time.sleep(RETRY_PERIOD)
 
