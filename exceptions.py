@@ -22,13 +22,13 @@ class NotJSONError(Exception):
     pass
 
 
-class NoCurrentDateError(Exception):
+class NoCurrentDateError(Warning):
     """Ошибка отсутствия ключа current_date."""
 
     pass
 
 
-class NotIntCurrentDateError(Exception):
+class NotIntCurrentDateError(Warning):
     """Ключ current_date не типа int."""
 
     pass

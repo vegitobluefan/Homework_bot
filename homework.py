@@ -37,7 +37,6 @@ def check_tokens():
         'TELEGRAM_CHAT_ID': TELEGRAM_CHAT_ID,
         'TELEGRAM_TOKEN': TELEGRAM_TOKEN,
     }
-
     keys_checked = [key_name for key_name, key in keys.items() if key is None]
     if keys_checked:
         logging.critical(
@@ -50,7 +49,7 @@ def send_message(bot, message):
     """Отправляет сообщение в Telegram-чат."""
     try:
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
-    except (requests.RequestException or ApiTelegramException) as error:
+    except (requests.RequestException, ApiTelegramException) as error:
         logging.error(f'Ошибка отправки сообщения: {error}')
     else:
         logging.debug('Сообщение успешно отправлено!')
@@ -129,16 +128,14 @@ def main():
                 last_status = new_status
             timestamp = response.get('current_date', timestamp)
 
+        except Warning as error:
+            logging.error(error)
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             logging.error(message)
-            if (
-                error != exceptions.NoCurrentDateError
-                or error != exceptions.NotIntCurrentDateError
-            ):
-                if last_status != str(error):
-                    send_message(bot, message)
-                    last_status = str(error)
+            if last_status != str(error):
+                send_message(bot, message)
+                last_status = str(error)
         finally:
             time.sleep(RETRY_PERIOD)
 
