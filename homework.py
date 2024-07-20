@@ -128,7 +128,9 @@ def main():
                 last_status = new_status
             timestamp = response.get('current_date', timestamp)
 
-        except Warning as error:
+        except (
+            exceptions.NoCurrentDateError, exceptions.NotIntCurrentDateError
+        ) as error:
             logging.error(error)
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
